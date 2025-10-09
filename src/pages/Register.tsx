@@ -41,22 +41,28 @@ const Register = () => {
 
     setIsLoading(true);
 
-    try {
-      await register(name, email, password);
-      toast({
-        title: "Account created!",
-        description: "Your secure vault is ready.",
-      });
-      navigate('/dashboard');
-    } catch (error) {
+    const { error, masterPassword } = await register(name, email, password);
+    
+    if (error) {
       toast({
         title: "Registration failed",
-        description: "Please try again later.",
+        description: error.message || "Please try again later.",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
+      return;
     }
+
+    toast({
+      title: "Account created!",
+      description: masterPassword 
+        ? `Your master password: ${masterPassword}` 
+        : "Your secure vault is ready.",
+      duration: 10000,
+    });
+    
+    navigate('/dashboard');
+    setIsLoading(false);
   };
 
   return (

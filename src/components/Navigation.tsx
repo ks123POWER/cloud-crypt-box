@@ -64,7 +64,7 @@ export const Navigation = () => {
             </Button>
 
             <div className="hidden md:block text-sm text-muted-foreground">
-              {user?.name}
+              {user?.user_metadata?.name || user?.email?.split('@')[0]}
             </div>
 
             <Button variant="ghost" size="icon" onClick={logout}>

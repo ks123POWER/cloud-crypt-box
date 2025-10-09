@@ -20,22 +20,24 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      await login(email, password);
-      toast({
-        title: "Welcome back!",
-        description: "You've successfully logged in.",
-      });
-      navigate('/dashboard');
-    } catch (error) {
+    const { error } = await login(email, password);
+    
+    if (error) {
       toast({
         title: "Login failed",
-        description: "Invalid email or password.",
+        description: error.message || "Invalid email or password.",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
+      return;
     }
+
+    toast({
+      title: "Welcome back!",
+      description: "You've successfully logged in.",
+    });
+    navigate('/dashboard');
+    setIsLoading(false);
   };
 
   return (

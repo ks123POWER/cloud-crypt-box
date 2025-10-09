@@ -6,17 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Settings as SettingsIcon, Key, Shield, Moon } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Shield, Moon, Copy, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 const Settings = () => {
   const { theme, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, masterPassword } = useAuth();
   const { toast } = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showMasterPassword, setShowMasterPassword] = useState(false);
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +50,16 @@ const Settings = () => {
     setConfirmPassword('');
   };
 
+  const copyMasterPassword = () => {
+    if (masterPassword) {
+      navigator.clipboard.writeText(masterPassword);
+      toast({
+        title: "Copied!",
+        description: "Master password copied to clipboard.",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -75,7 +86,7 @@ const Settings = () => {
               <CardContent className="space-y-4">
                 <div>
                   <Label>Name</Label>
-                  <div className="mt-1 text-sm">{user?.name}</div>
+                  <div className="mt-1 text-sm">{user?.user_metadata?.name || user?.email?.split('@')[0]}</div>
                 </div>
                 <div>
                   <Label>Email</Label>
@@ -120,7 +131,36 @@ const Settings = () => {
                 <CardDescription>Manage your security settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div>
+                  <Label>Master Password</Label>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Your unique master password for accessing shared files
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type={showMasterPassword ? 'text' : 'password'}
+                      value={masterPassword || 'Loading...'}
+                      readOnly
+                      className="font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowMasterPassword(!showMasterPassword)}
+                    >
+                      {showMasterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={copyMasterPassword}
+                      disabled={!masterPassword}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-4">
                   <div>
                     <Label>Two-Factor Authentication</Label>
                     <p className="text-sm text-muted-foreground">
