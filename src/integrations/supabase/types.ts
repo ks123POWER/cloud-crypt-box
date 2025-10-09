@@ -14,7 +14,141 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      files: {
+        Row: {
+          created_at: string
+          encryption_key: string
+          file_hash: string
+          file_name: string
+          file_size: number
+          file_type: string | null
+          id: string
+          is_encrypted: boolean
+          storage_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          encryption_key: string
+          file_hash: string
+          file_name: string
+          file_size: number
+          file_type?: string | null
+          id?: string
+          is_encrypted?: boolean
+          storage_path: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          encryption_key?: string
+          file_hash?: string
+          file_name?: string
+          file_size?: number
+          file_type?: string | null
+          id?: string
+          is_encrypted?: boolean
+          storage_path?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shareable_links: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          file_id: string
+          id: string
+          link_token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          file_id: string
+          id?: string
+          link_token: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          file_id?: string
+          id?: string
+          link_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shareable_links_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_master_passwords: {
+        Row: {
+          created_at: string
+          id: string
+          master_password: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          master_password: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          master_password?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_master_passwords_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
