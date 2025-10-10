@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navigation } from '@/components/Navigation';
 import { UploadZone } from '@/components/UploadZone';
-import { encryptFile, EncryptedFile } from '@/lib/crypto';
+import { encryptFile } from '@/lib/crypto';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
 import { Shield, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Upload = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -15,36 +17,66 @@ const Upload = () => {
   const [uploadComplete, setUploadComplete] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, masterPassword } = useAuth();
 
   const handleFileSelect = async (file: File) => {
+    if (!user || !masterPassword) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to upload files.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
     setProgress(0);
     setUploadComplete(false);
 
     try {
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
+      // Start progress simulation
+      setProgress(10);
 
       // Encrypt the file
-      const encryptedFile = await encryptFile(file);
+      const { encryptedData, iv, hash } = await encryptFile(file, masterPassword);
+      setProgress(40);
 
-      clearInterval(progressInterval);
+      // Generate storage path
+      const timestamp = Date.now();
+      const storagePath = `${user.id}/${timestamp}-${file.name}`;
+
+      // Upload encrypted file to Supabase storage
+      const { error: uploadError } = await supabase
+        .storage
+        .from('encrypted-files')
+        .upload(storagePath, new Blob([encryptedData]), {
+          contentType: 'application/octet-stream',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+      
+      setProgress(70);
+
+      // Save file metadata to database
+      const ivBase64 = btoa(String.fromCharCode(...iv));
+      
+      const { error: dbError } = await supabase
+        .from('files')
+        .insert({
+          user_id: user.id,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type || 'application/octet-stream',
+          storage_path: storagePath,
+          encryption_key: ivBase64,
+          file_hash: hash,
+          is_encrypted: true
+        });
+
+      if (dbError) throw dbError;
+
       setProgress(100);
-
-      // Save to localStorage
-      const savedFiles = localStorage.getItem('encryptedFiles');
-      const files: EncryptedFile[] = savedFiles ? JSON.parse(savedFiles) : [];
-      files.push(encryptedFile);
-      localStorage.setItem('encryptedFiles', JSON.stringify(files));
-
       setUploadComplete(true);
 
       toast({
@@ -56,9 +88,10 @@ const Upload = () => {
         navigate('/dashboard');
       }, 2000);
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
         title: "Upload failed",
-        description: "Could not encrypt and upload the file.",
+        description: error instanceof Error ? error.message : "Could not encrypt and upload the file.",
         variant: "destructive",
       });
       setIsUploading(false);
@@ -75,7 +108,7 @@ const Upload = () => {
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold mb-2">Upload & Encrypt</h1>
             <p className="text-muted-foreground">
-              Your files are encrypted client-side before upload using AES-256 GCM
+              Your files are encrypted with AES-256-GCM using your unique master password
             </p>
           </div>
 
@@ -105,7 +138,7 @@ const Upload = () => {
                   <Progress value={progress} />
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
-                      {progress < 50 ? 'Encrypting file...' : 'Uploading...'}
+                      {progress < 40 ? 'Encrypting file...' : progress < 70 ? 'Uploading...' : 'Finalizing...'}
                     </span>
                     <span className="font-medium">{progress}%</span>
                   </div>
@@ -118,9 +151,9 @@ const Upload = () => {
             <Card>
               <CardContent className="p-6 text-center">
                 <Shield className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">AES-256 Encryption</h3>
+                <h3 className="font-semibold mb-1">AES-256-GCM</h3>
                 <p className="text-sm text-muted-foreground">
-                  Military-grade encryption standard
+                  Military-grade encryption
                 </p>
               </CardContent>
             </Card>
@@ -128,9 +161,9 @@ const Upload = () => {
             <Card>
               <CardContent className="p-6 text-center">
                 <Shield className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">Client-Side</h3>
+                <h3 className="font-semibold mb-1">Master Password</h3>
                 <p className="text-sm text-muted-foreground">
-                  Files encrypted on your device
+                  Unique encryption seed per user
                 </p>
               </CardContent>
             </Card>
@@ -138,9 +171,9 @@ const Upload = () => {
             <Card>
               <CardContent className="p-6 text-center">
                 <Shield className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">Hash Verification</h3>
+                <h3 className="font-semibold mb-1">SHA-256 Hash</h3>
                 <p className="text-sm text-muted-foreground">
-                  SHA-256 integrity checks
+                  Integrity verification
                 </p>
               </CardContent>
             </Card>

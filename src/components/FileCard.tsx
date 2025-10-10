@@ -1,4 +1,4 @@
-import { FileText, Download, Shield, Trash2 } from 'lucide-react';
+import { FileText, Download, Shield, Trash2, Share2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EncryptedFile } from '@/lib/crypto';
@@ -9,9 +9,10 @@ interface FileCardProps {
   onDownload: (file: EncryptedFile) => void;
   onVerify: (file: EncryptedFile) => void;
   onDelete: (id: string) => void;
+  onShare: (file: EncryptedFile) => void;
 }
 
-export const FileCard = ({ file, onDownload, onVerify, onDelete }: FileCardProps) => {
+export const FileCard = ({ file, onDownload, onVerify, onDelete, onShare }: FileCardProps) => {
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
@@ -39,7 +40,7 @@ export const FileCard = ({ file, onDownload, onVerify, onDelete }: FileCardProps
               <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                 <span>{formatFileSize(file.fileSize)}</span>
                 <span>•</span>
-                <span>{formatDate(file.uploadDate)}</span>
+                <span>{formatDate(new Date(file.createdAt))}</span>
               </div>
             </div>
           </div>
@@ -53,20 +54,23 @@ export const FileCard = ({ file, onDownload, onVerify, onDelete }: FileCardProps
           <Button
             variant="outline"
             size="sm"
-            className="flex-1"
             onClick={() => onDownload(file)}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Download
+            <Download className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="flex-1"
             onClick={() => onVerify(file)}
           >
-            <Shield className="h-4 w-4 mr-2" />
-            Verify
+            <Shield className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onShare(file)}
+          >
+            <Share2 className="h-4 w-4" />
           </Button>
           <Button
             variant="destructive"
@@ -79,7 +83,7 @@ export const FileCard = ({ file, onDownload, onVerify, onDelete }: FileCardProps
 
         <div className="mt-3 p-2 bg-muted rounded text-xs font-mono break-all">
           <div className="text-muted-foreground">SHA-256:</div>
-          <div>{file.hash.slice(0, 32)}...</div>
+          <div>{file.fileHash.slice(0, 32)}...</div>
         </div>
       </CardContent>
     </Card>

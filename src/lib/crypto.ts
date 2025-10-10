@@ -1,96 +1,139 @@
-// Mock cryptography functions for demonstration purposes
-// In production, use actual Web Crypto API or a library like crypto-js
+// Real cryptography functions using Web Crypto API
 
 export interface EncryptedFile {
-  encryptedData: string;
-  hash: string;
+  id: string;
   fileName: string;
   fileSize: number;
-  uploadDate: Date;
-  id: string;
+  fileType: string;
+  storagePath: string;
+  fileHash: string;
+  encryptionKey: string; // IV stored here
+  createdAt: string;
+  userId: string;
 }
 
-// Simulate AES-256 GCM encryption
-export const encryptFile = async (file: File): Promise<EncryptedFile> => {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    
-    reader.onload = () => {
-      // In production, perform actual AES-256 GCM encryption here
-      const fileData = reader.result as string;
-      const encryptedData = btoa(fileData); // Base64 encoding as placeholder
-      const hash = generateHash(fileData);
-      
-      resolve({
-        encryptedData,
-        hash,
-        fileName: file.name,
-        fileSize: file.size,
-        uploadDate: new Date(),
-        id: generateId(),
-      });
-    };
-    
-    reader.readAsDataURL(file);
-  });
+// Derive encryption key from master password using PBKDF2
+const deriveKey = async (masterPassword: string, salt: Uint8Array): Promise<CryptoKey> => {
+  const encoder = new TextEncoder();
+  const passwordBuffer = encoder.encode(masterPassword);
+  
+  const importedKey = await crypto.subtle.importKey(
+    'raw',
+    passwordBuffer,
+    'PBKDF2',
+    false,
+    ['deriveBits', 'deriveKey']
+  );
+  
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt as BufferSource,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    importedKey,
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
 };
 
-// Simulate file decryption
-export const decryptFile = (encryptedFile: EncryptedFile): Blob => {
+// Encrypt file using AES-256-GCM with master password
+export const encryptFile = async (
+  file: File,
+  masterPassword: string
+): Promise<{ encryptedData: ArrayBuffer; iv: Uint8Array; hash: string }> => {
+  const fileBuffer = await file.arrayBuffer();
+  
+  // Generate random salt and IV
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  
+  // Derive encryption key from master password
+  const key = await deriveKey(masterPassword, salt);
+  
+  // Encrypt the file
+  const encryptedData = await crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv: iv
+    },
+    key,
+    fileBuffer
+  );
+  
+  // Calculate SHA-256 hash of encrypted data
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encryptedData);
+  const hash = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  // Combine salt + IV for storage
+  const combinedIv = new Uint8Array(salt.length + iv.length);
+  combinedIv.set(salt);
+  combinedIv.set(iv, salt.length);
+  
+  return {
+    encryptedData,
+    iv: combinedIv,
+    hash
+  };
+};
+
+// Decrypt file using AES-256-GCM with master password
+export const decryptFile = async (
+  encryptedData: ArrayBuffer,
+  ivData: string,
+  masterPassword: string,
+  fileName: string,
+  fileType: string
+): Promise<Blob> => {
   try {
-    // In production, perform actual AES-256 GCM decryption here
-    const decryptedData = atob(encryptedFile.encryptedData);
+    // Decode the combined salt + IV
+    const combinedIv = Uint8Array.from(atob(ivData), c => c.charCodeAt(0));
+    const salt = combinedIv.slice(0, 16);
+    const iv = combinedIv.slice(16);
     
-    // Convert base64 back to blob
-    const byteString = decryptedData.split(',')[1] || decryptedData;
-    const mimeString = decryptedData.split(',')[0]?.split(':')[1]?.split(';')[0] || 'application/octet-stream';
+    // Derive the same encryption key
+    const key = await deriveKey(masterPassword, salt);
     
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
+    // Decrypt the data
+    const decryptedBuffer = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv
+      },
+      key,
+      encryptedData
+    );
     
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    
-    return new Blob([ab], { type: mimeString });
+    return new Blob([decryptedBuffer], { type: fileType });
   } catch (error) {
     console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt file');
+    throw new Error('Failed to decrypt file. Incorrect master password or corrupted file.');
   }
-};
-
-// Simulate SHA-256 hash generation
-export const generateHash = (data: string): string => {
-  // In production, use actual SHA-256 hashing
-  let hash = 0;
-  for (let i = 0; i < data.length; i++) {
-    const char = data.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(16).padStart(64, '0').slice(0, 64);
 };
 
 // Verify file integrity by comparing hashes
-export const verifyFileIntegrity = (file: EncryptedFile): boolean => {
-  const currentHash = generateHash(file.encryptedData);
-  return currentHash === file.hash;
+export const verifyFileIntegrity = async (
+  encryptedData: ArrayBuffer,
+  expectedHash: string
+): Promise<boolean> => {
+  try {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encryptedData);
+    const calculatedHash = Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    return calculatedHash === expectedHash;
+  } catch (error) {
+    console.error('Hash verification error:', error);
+    return false;
+  }
 };
 
 // Generate unique ID
 export const generateId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
-
-// Simulate password hashing (Argon2/PBKDF2)
-export const hashPassword = async (password: string): Promise<string> => {
-  // In production, use actual Argon2 or PBKDF2
-  return `hashed_${btoa(password)}_${Date.now()}`;
-};
-
-// Verify password
-export const verifyPassword = async (password: string, hashedPassword: string): Promise<boolean> => {
-  // In production, use actual password verification
-  const expectedHash = await hashPassword(password);
-  return hashedPassword.includes(btoa(password));
 };
