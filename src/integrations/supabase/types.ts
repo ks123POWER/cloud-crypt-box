@@ -154,7 +154,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      generate_master_password: { Args: never; Returns: string }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
